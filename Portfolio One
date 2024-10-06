@@ -1,0 +1,80 @@
+local gamePassID = 00000000
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+local MarketplaceService = game:GetService("MarketplaceService")
+local toolName = "Sword"
+local tool = ReplicatedStorage:WaitForChild(toolName)
+
+local function ownsGamePass(player)
+    local success, hasPass = pcall(function()
+        return MarketplaceService:UserOwnsGamePassAsync(player.UserId, gamePassID)
+    end)
+
+    if success then
+        if hasPass then
+            print(player.Name .. " owns the GamePass.")
+        else
+            print(player.Name .. " does not own the GamePass.")
+        end
+        return hasPass
+    else
+        warn("There was an issue checking if " .. player.Name .. " owns the GamePass. Possible network error or problem with the MarketplaceService.")
+        return false
+    end
+end
+
+local function awardItem(player)
+    if tool then
+        local toolClone = tool:Clone()
+        local backpack = player:WaitForChild("Backpack")
+        local existingTool = backpack:FindFirstChild(toolName)
+
+        if not existingTool then
+            print("Awarding tool to " .. player.Name .. " as they do not have it yet.")
+            toolClone.Parent = backpack
+
+            if backpack:FindFirstChild(toolName) then
+                print("Tool successfully placed in " .. player.Name .. "'s backpack.")
+            else
+                warn("Something went wrong when trying to place the tool in " .. player.Name .. "'s backpack.")
+            end
+        else
+            print(player.Name .. " already has the tool in their backpack, so no need to award it again.")
+        end
+    else
+        warn("Tool named " .. toolName .. " does not exist in ReplicatedStorage. Unable to give item to " .. player.Name)
+    end
+end
+
+local function onPlayerAdded(player)
+    player.CharacterAdded:Wait()
+
+    local success = ownsGamePass(player)
+    
+    if success then
+        print("Player " .. player.Name .. " has been validated to own the GamePass, proceeding to award item.")
+        awardItem(player)
+    else
+        print("Player " .. player.Name .. " does not own the GamePass, no item will be awarded.")
+    end
+end
+
+MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, purchasedPassID, wasPurchased)
+    if purchasedPassID == gamePassID then
+        if wasPurchased then
+            print(player.Name .. " has successfully purchased the GamePass. Proceeding to award item.")
+            awardItem(player)
+        else
+            print(player.Name .. " attempted to purchase the GamePass but the purchase did not go through.")
+        end
+    else
+        print(player.Name .. " purchased a GamePass, but it was not the one we are tracking (ID: " .. purchasedPassID .. ").")
+    end
+end)
+
+Players.PlayerAdded:Connect(onPlayerAdded)
+
+for _, player in pairs(Players:GetPlayers()) do
+    print("Existing player detected: " .. player.Name .. ". Checking if they own the GamePass.")
+    onPlayerAdded(player)
+end
